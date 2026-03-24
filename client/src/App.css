@@ -1,0 +1,258 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  background-color: #f5f7fa;
+  color: #333;
+  line-height: 1.6;
+}
+
+.container {
+  max-width: 800px;
+  margin: 40px auto;
+  padding: 40px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.container h1 {
+  font-size: 1.5rem;
+  color: #1a3a5c;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.container h2 {
+  font-size: 1.2rem;
+  color: #2c5282;
+  margin-bottom: 8px;
+}
+
+.container p {
+  margin-bottom: 12px;
+  color: #555;
+}
+
+.btn {
+  display: inline-block;
+  padding: 10px 32px;
+  background-color: #4C94D8;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn:hover {
+  background-color: #3a7bc0;
+}
+
+.btn:disabled {
+  background-color: #a0c4e8;
+  cursor: not-allowed;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #1a3a5c;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  border-color: #4C94D8;
+}
+
+.round-indicator {
+  text-align: center;
+  font-size: 0.95rem;
+  color: #4C94D8;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.reading-text {
+  background: #f8fafc;
+  padding: 20px;
+  border-radius: 6px;
+  border-left: 4px solid #4C94D8;
+  line-height: 1.8;
+  font-size: 1.05rem;
+  margin-bottom: 24px;
+}
+
+.writing-layout {
+  display: flex;
+  gap: 24px;
+  min-height: 400px;
+}
+
+.writing-left {
+  flex: 1;
+  background: #f8fafc;
+  padding: 20px;
+  border-radius: 6px;
+  border-left: 4px solid #4C94D8;
+  line-height: 1.8;
+  font-size: 0.95rem;
+  overflow-y: auto;
+  max-height: 500px;
+}
+
+.writing-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.writing-right .opening-sentence {
+  background: #edf2f7;
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  font-style: italic;
+  color: #2d3748;
+}
+
+.writing-right textarea {
+  flex: 1;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-family: inherit;
+  line-height: 1.6;
+  resize: none;
+  outline: none;
+  min-height: 250px;
+}
+
+.writing-right textarea:focus {
+  border-color: #4C94D8;
+}
+
+.writing-right textarea:disabled {
+  background: #f0f0f0;
+  cursor: not-allowed;
+}
+
+.writing-disabled {
+  position: relative;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.writing-disabled-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255, 255, 255, 0.95);
+  padding: 20px 28px;
+  border-radius: 8px;
+  text-align: center;
+  color: #4a5568;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  pointer-events: none;
+}
+
+.confirm-reading-btn {
+  margin-top: 16px;
+  width: 100%;
+}
+
+.writing-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+}
+
+.word-count {
+  font-size: 0.9rem;
+  color: #718096;
+}
+
+.word-count.in-range {
+  color: #38a169;
+  font-weight: 600;
+}
+
+.timer {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #e53e3e;
+  background: #fff5f5;
+  padding: 6px 16px;
+  border-radius: 6px;
+}
+
+.timer.warning {
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.end-container {
+  text-align: center;
+  padding: 80px 40px;
+}
+
+.end-container h1 {
+  font-size: 1.8rem;
+  color: #2c5282;
+  margin-bottom: 16px;
+}
+
+.btn-center {
+  text-align: center;
+  margin-top: 24px;
+}
+
+.instruction-list {
+  margin: 16px 0;
+  padding-left: 20px;
+}
+
+.instruction-list li {
+  margin-bottom: 8px;
+  color: #555;
+}
+
+.important-note {
+  background: #fffbeb;
+  border-left: 4px solid #d69e2e;
+  padding: 12px 16px;
+  border-radius: 4px;
+  margin: 16px 0;
+  color: #744210;
+}

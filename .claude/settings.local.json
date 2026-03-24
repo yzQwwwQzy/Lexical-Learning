@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /Users/wangyanshu/Desktop/yzqweb -type f -not -path */node_modules/* -not -path */.git/* -not -name *.docx -not -name package-lock.json)",
+      "Bash(find /Users/wangyanshu/Desktop/yzqweb -type f -not -path */node_modules/* -not -path */.git/* -not -name *.docx -not -name package-lock.json -not -path */.claude/*)",
+      "Bash(npm install:*)",
+      "Bash(npx vite:*)",
+      "Read(//Users/wangyanshu/Desktop/**)",
+      "Bash(do curl:*)",
+      "Bash(python3 -c \":*)"
+    ]
+  }
+}
