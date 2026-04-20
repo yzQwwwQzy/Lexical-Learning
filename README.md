@@ -9,14 +9,16 @@ Students work through 3 rounds of AI-student collaborative story writing, with v
 ```bash
 npm install
 cp .env.example .env
-# Edit .env and add your OpenAI API key
+# Edit .env and add your MiniMax API key
 ```
 
 ## Configuration
 
-Set `OPENAI_API_KEY` in `.env`:
+This project uses MiniMax through an OpenAI-compatible API. Set the following in `.env`:
 ```
-OPENAI_API_KEY=sk-...
+OPENAI_API_KEY=your_minimax_api_key
+OPENAI_BASE_URL=https://api.minimaxi.com/v1
+OPENAI_MODEL=MiniMax-M2.7
 ```
 
 If the key is not set, the AI paragraph generation endpoint will return a friendly error message. Round 1 uses a hardcoded paragraph and works without an API key.

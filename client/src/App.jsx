@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import RegisterPage from './pages/RegisterPage';
 import InstructionPage from './pages/InstructionPage';
-import ReadingPage from './pages/ReadingPage';
+import GeneratingPage from './pages/GeneratingPage';
 import WritingPage from './pages/WritingPage';
 import EndPage from './pages/EndPage';
 import './App.css';
@@ -12,7 +12,7 @@ function App() {
       <Routes>
         <Route path="/" element={<RegisterPage />} />
         <Route path="/instruction" element={<InstructionPage />} />
-        <Route path="/reading/:round" element={<ReadingPage />} />
+        <Route path="/generating/:round" element={<GeneratingPage />} />
         <Route path="/writing/:round" element={<WritingPage />} />
         <Route path="/end" element={<EndPage />} />
       </Routes>

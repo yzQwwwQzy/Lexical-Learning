@@ -94,6 +94,27 @@ body {
   margin-bottom: 16px;
 }
 
+.writing-instruction-box {
+  background: #ebf8ff;
+  border: 2px solid #63b3ed;
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 18px;
+  color: #1a365d;
+  line-height: 1.8;
+}
+
+.writing-instruction-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.writing-instruction-hint {
+  margin-top: 6px;
+  font-weight: 600;
+}
+
 .reading-text {
   background: #f8fafc;
   padding: 20px;
@@ -151,6 +172,10 @@ body {
   min-height: 250px;
 }
 
+.word-count-row {
+  margin-top: 8px;
+}
+
 .writing-right textarea:focus {
   border-color: #4C94D8;
 }
@@ -189,7 +214,7 @@ body {
 
 .writing-footer {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   margin-top: 16px;
 }
@@ -255,4 +280,12 @@ body {
   border-radius: 4px;
   margin: 16px 0;
   color: #744210;
+}
+
+.loading-text {
+  text-align: center;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #2c5282;
+  padding: 48px 0;
 }

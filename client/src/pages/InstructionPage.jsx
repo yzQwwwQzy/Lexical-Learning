@@ -6,7 +6,7 @@ export default function InstructionPage() {
   return (
     <div className="container">
       <h1>任务说明</h1>
-      <p>在本任务中，你将与 AI 一起合作完成一篇故事写作。整个任务共 3 轮，每一轮都包含以下步骤：</p>
+      <p>在本任务中，你将与 AI 一起合作完成一篇故事写作。整个任务共 3 轮，每一轮都将在同一页面中先阅读 AI 段落，再继续写作。</p>
 
       <h2>步骤 1：阅读 AI 写的段落</h2>
       <p>系统会先提供一段由 AI 生成的英文故事内容。请认真阅读该段落。</p>
@@ -26,8 +26,8 @@ export default function InstructionPage() {
         <ul className="instruction-list">
           <li>请尽量保持故事内容连贯。</li>
           <li>可以使用你刚刚看到的新单词，但不是必须的。</li>
-          <li>每一轮写完后，请点击完成，系统会进入下一轮，AI 会继续生成新的故事段落。</li>
-          <li>整个任务共 3 轮阅读 + 写作，最终完成一篇完整的故事。</li>
+          <li>每一轮写完后，请点击提交，系统会直接进入下一轮写作页面，AI 会继续生成新的故事段落。</li>
+          <li>整个任务共 3 轮，最终完成一篇完整的故事。</li>
         </ul>
       </div>
 
@@ -36,7 +36,7 @@ export default function InstructionPage() {
       </p>
 
       <div className="btn-center">
-        <button className="btn" onClick={() => navigate('/reading/1')}>
+        <button className="btn" onClick={() => navigate('/writing/1')}>
           开始 (Start)
         </button>
       </div>

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const { generateParagraph } = require('../llm');
+const { generateParagraph, sanitizeGeneratedParagraph } = require('../llm');
 
 // ---- Prompt helpers (CJS-compatible copies of src/data) ----
 
@@ -31,6 +31,9 @@ const VOCABULARY = {
   ],
 };
 
+const ROUND1_TARGET_WORDS = VOCABULARY[1].map(({ word }) => word);
+const ROUND2_TARGET_WORDS = VOCABULARY[2].map(({ word }) => word);
+
 const GROUPS = [
   { id: 1, repeating: true, annotationLang: 'l1' },
   { id: 2, repeating: true, annotationLang: 'l2' },
@@ -41,127 +44,230 @@ const GROUPS = [
 // Prompt templates (repeating vs no-repeating)
 const PROMPTS = {
   repeating: {
-    2: `Generate the second paragraph of a collaborative story written by an AI and a student.
-The story continues after the previous part:
-{PARAGRAPHS_R1}
-The story topic is a class preparing a performance for the school anniversary.
-In this paragraph, the story should develop the preparation process and move the story closer to the final performance. Students begin to design the performance, and practice together.
+  2: `Generate the second paragraph of a collaborative story written by an AI and a student.
+  The story continues after the previous part:
+  <PARAGRAPHS_R1>
+  {PARAGRAPHS_R1}
+  </PARAGRAPHS_R1>
+  The story topic is a class preparing a performance for the school anniversary.
+  In this paragraph, the story should develop the preparation process and move the story closer to the final performance. Students begin to design the performance, and practice together.
 
-Required vocabulary
-Use the following new target words in the paragraph.Each word must appear once.
-synchronize
-elaborate
-stagecraft
-improvise
-choreography
-Also reuse the following words that the student looked up earlier:
-{HOVERED_R1}
-You may add other simple words to make the story natural and coherent.
-
-Text requirements
-Paragraph length: 90–100 words
-Number of sentences: 5–7
-Average sentence length: 12–15 words
-Lexical difficulty: Grade 11 or lower (Mainland China)
-Write a clear narrative paragraph
-Maintain coherence with the previous paragraph
-Use simple and natural English
-Do not:
-explain the vocabulary
-define the words
-highlight or mark the words
-
-Output format
-[AI paragraph]`,
-    3: `Generate the third paragraph of a collaborative story written by an AI and a student.
-The story continues after the previous parts:
-{PARAGRAPHS_R1}{PARAGRAPHS_R2}
-The story topic is a class preparing a performance for the school anniversary.
-In this paragraph, the story should lead to the final success of the performance during the school anniversary celebration. The paragraph should describe the final preparation or the performance itself.
-
-Required vocabulary
-Reuse the following words that the student looked up in the previous round.
-Each word should appear at least once.
-{HOVERED_R2}
-You may add other simple words if necessary to make the story natural and coherent.
-
-Text requirements
-Paragraph length: 70–80 words
-Number of sentences: 4–6
-Average sentence length: 12–15 words
-Lexical difficulty: Grade 11 or lower (Mainland China)
-Write in clear narrative style
-Maintain coherence with the previous paragraphs
-The paragraph should resolve the story and show the success of the performance
-Do not:
-explain the vocabulary
-define the words
-highlight or mark the words
-
-Output format
-[AI paragraph]`,
+  Required vocabulary
+  Use the following new target words in the paragraph.Each word must appear once.
+  synchronize
+  elaborate
+  stagecraft
+  improvise
+  choreography
+  Reuse only the following target words that the student hovered in Round 1:
+  {HOVERED_R1}
+  Do not use any other target words from Round 1 besides the hovered list above.
+  Forbidden annotated vocabulary from Round 1:
+  {FORBIDDEN_WORDS}
+  You may add other simple words to make the story natural and coherent.
+  
+  Text requirements
+  Paragraph length: 90–100 words
+  Number of sentences: 5–7
+  Average sentence length: 12–15 words
+  Lexical difficulty: Grade 11 or lower (Mainland China)
+  Write a clear narrative paragraph
+  Maintain coherence with the previous paragraph
+  Use simple and natural English
+  Do not:
+  explain the vocabulary
+  define the words
+  highlight or mark the words
+  
+  Output format
+  [AI paragraph]`,
+  3: `Generate the third paragraph of a collaborative story written by an AI and a student.
+  The story continues after the previous parts:
+  <PARAGRAPHS_R1>
+  {PARAGRAPHS_R1}
+  </PARAGRAPHS_R1>
+  <PARAGRAPHS_R2>
+  {PARAGRAPHS_R2}
+  </PARAGRAPHS_R2>
+  
+  The story topic is a class preparing a performance for the school anniversary.
+  In this paragraph, the story should lead to the final success of the performance during the school anniversary celebration. The paragraph should describe the final preparation or the performance itself.
+  
+  Reuse only the following target words that the student hovered in Round 2:
+  {HOVERED_R2}
+  Do not use any other target words from earlier rounds besides the hovered list above.
+  Forbidden annotated vocabulary from Round 2:
+  {FORBIDDEN_WORDS}
+  You may add other simple words if necessary to make the story natural and coherent.
+  
+  Text requirements
+  Paragraph length: 70–80 words
+  Number of sentences: 4–6
+  Average sentence length: 12–15 words
+  Lexical difficulty: Grade 11 or lower (Mainland China)
+  Write in clear narrative style
+  Maintain coherence with the previous paragraphs
+  The paragraph should resolve the story and show the success of the performance
+  Do not:
+  explain the vocabulary
+  define the words
+  highlight or mark the words
+  
+  Output format
+  [AI paragraph]`,
   },
   noRepeating: {
-    2: `Generate the second paragraph of a collaborative story written by an AI and a student.
-The story continues after the previous part:
-{PARAGRAPHS_R1}
-The story topic is a class preparing a performance for the school anniversary.
-In this paragraph, the story should develop the preparation process and move the story closer to the final performance. Students begin to design the performance, and practice together.
-
-Required vocabulary
-Use the following new target words in the paragraph.Each word must appear at least once.
-synchronize
-elaborate
-stagecraft
-improvise
-choreography
-You may add other simple words to make the story natural and coherent.
-
-Text requirements
-Paragraph length: 90–100 words
-Number of sentences: 5–7
-Average sentence length: 12–15 words
-Lexical difficulty: Grade 11 or lower (Mainland China)
-Write a clear narrative paragraph
-Maintain coherence with the previous paragraph
-Use simple and natural English
-Do not:
-explain the vocabulary
-define the words
-highlight or mark the words
-
-Output format
-[AI paragraph]`,
-    3: `Generate the third paragraph of a collaborative story written by an AI and a student.
-The story continues after the previous parts:
-{PARAGRAPHS_R1}{PARAGRAPHS_R2}
-The story topic is a class preparing a performance for the school anniversary.
-In this paragraph, the story should lead to the final success of the performance during the school anniversary celebration. The paragraph should describe the final preparation or the performance itself.
-
-Text requirements
-Paragraph length: 70–80 words
-Number of sentences: 4–6
-Average sentence length: 12–15 words
-Lexical difficulty: Grade 11 or lower (Mainland China)
-Write in clear narrative style
-Maintain coherence with the previous paragraphs
-The paragraph should resolve the story and show the success of the performance
-Do not:
-explain the vocabulary
-define the words
-highlight or mark the words
-
-Output format
-[AI paragraph]`,
+  2: `Generate the second paragraph of a collaborative story written by an AI and a student.
+  The story continues after the previous part:
+  <PARAGRAPHS_R1>
+  {PARAGRAPHS_R1}
+  </PARAGRAPHS_R1>
+  The story topic is a class preparing a performance for the school anniversary.
+  In this paragraph, the story should develop the preparation process and move the story closer to the final performance. Students begin to design the performance, and practice together.
+  
+  Required vocabulary
+  Use the following new target words in the paragraph.Each word must appear at least once.
+  synchronize
+  elaborate
+  stagecraft
+  improvise
+  choreography
+  Do not use any target words from Round 1 in this paragraph:
+  audition
+  rehearsal
+  dramatic
+  coordinate
+  exhausted
+  You may add other simple words to make the story natural and coherent.
+  
+  Text requirements
+  Paragraph length: 90–100 words
+  Number of sentences: 5–7
+  Average sentence length: 12–15 words
+  Lexical difficulty: Grade 11 or lower (Mainland China)
+  Write a clear narrative paragraph
+  Maintain coherence with the previous paragraph
+  Use simple and natural English
+  Do not:
+  explain the vocabulary
+  define the words
+  highlight or mark the words
+  
+  Output format
+  [AI paragraph]`,
+  3: `Generate the third paragraph of a collaborative story written by an AI and a student.
+  The story continues after the previous parts:
+  <PARAGRAPHS_R1>
+  {PARAGRAPHS_R1}
+  </PARAGRAPHS_R1>
+  <PARAGRAPHS_R2>
+  {PARAGRAPHS_R2}
+  </PARAGRAPHS_R2>
+  The story topic is a class preparing a performance for the school anniversary.
+  In this paragraph, the story should lead to the final success of the performance during the school anniversary celebration. The paragraph should describe the final preparation or the performance itself.
+  
+  Do not use any target words from earlier rounds in this paragraph:
+  audition
+  rehearsal
+  dramatic
+  coordinate
+  exhausted
+  synchronize
+  elaborate
+  stagecraft
+  improvise
+  choreography
+  You may add other simple words if necessary to make the story natural and coherent.
+  
+  Text requirements
+  Paragraph length: 70–80 words
+  Number of sentences: 4–6
+  Average sentence length: 12–15 words
+  Lexical difficulty: Grade 11 or lower (Mainland China)
+  Write in clear narrative style
+  Maintain coherence with the previous paragraphs
+  The paragraph should resolve the story and show the success of the performance
+  Do not:
+  explain the vocabulary
+  define the words
+  highlight or mark the words
+  
+  Output format
+  [AI paragraph]`,
   },
 };
+  
 
-function buildPrompt(template, { paragraphsR1 = '', paragraphsR2 = '', hoveredR1 = [], hoveredR2 = [] }) {
+
+function buildPrompt(template, {
+  paragraphsR1 = '',
+  paragraphsR2 = '',
+  hoveredR1 = [],
+  hoveredR2 = [],
+  forbiddenWords = [],
+}) {
   return template
     .replace('{PARAGRAPHS_R1}', paragraphsR1)
     .replace('{PARAGRAPHS_R2}', paragraphsR2)
     .replace('{HOVERED_R1}', hoveredR1.join(', '))
-    .replace('{HOVERED_R2}', hoveredR2.join(', '));
+    .replace('{HOVERED_R2}', hoveredR2.join(', '))
+    .replace('{FORBIDDEN_WORDS}', forbiddenWords.length > 0 ? forbiddenWords.join(', ') : 'None');
+}
+
+function normalizeWords(words = []) {
+  if (!Array.isArray(words)) return [];
+  return [...new Set(
+    words
+      .map((word) => String(word || '').trim().toLowerCase())
+      .filter(Boolean)
+  )];
+}
+
+function resolveHoveredWords(requestWords, dbWords) {
+  const normalizedRequest = normalizeWords(requestWords);
+  return normalizedRequest.length > 0 ? normalizedRequest : normalizeWords(dbWords);
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function containsWord(text, word) {
+  return new RegExp(`\\b${escapeRegExp(word)}\\b`, 'i').test(text);
+}
+
+function validateVocabulary(text, requiredWords = [], forbiddenWords = []) {
+  const missingWords = normalizeWords(requiredWords).filter((word) => !containsWord(text, word));
+  const usedForbiddenWords = normalizeWords(forbiddenWords).filter((word) => containsWord(text, word));
+
+  return {
+    isValid: missingWords.length === 0 && usedForbiddenWords.length === 0,
+    missingWords,
+    usedForbiddenWords,
+  };
+}
+
+function getCleanAiParagraph(writing) {
+  if (!writing?.ai_paragraph) return null;
+
+  const cleaned = sanitizeGeneratedParagraph(writing.ai_paragraph);
+  return cleaned || null;
+}
+
+function buildRetryPrompt(basePrompt, paragraph, { missingWords = [], usedForbiddenWords = [] }) {
+  const extraInstructions = ['Your previous paragraph did not satisfy the vocabulary rules.'];
+
+  if (missingWords.length > 0) {
+    extraInstructions.push(`Add each missing required word at least once: ${missingWords.join(', ')}.`);
+  }
+
+  if (usedForbiddenWords.length > 0) {
+    extraInstructions.push(`Remove these forbidden annotated words entirely: ${usedForbiddenWords.join(', ')}.`);
+  }
+
+  extraInstructions.push('Return only the corrected paragraph text.');
+
+  return `${basePrompt}\n\nIMPORTANT REVISION CHECK\n${extraInstructions.join('\n')}\n\nPrevious paragraph:\n${paragraph}`;
 }
 
 // ============================================================
@@ -254,7 +360,11 @@ router.get('/round/:sessionId/:round', (req, res) => {
         'SELECT * FROM writings WHERE session_id = ? AND round = ?'
       ).get(sessionId, round);
       if (writing) {
-        aiParagraph = writing.ai_paragraph;
+        const cleanedParagraph = getCleanAiParagraph(writing);
+        if (cleanedParagraph !== writing.ai_paragraph) {
+          db.prepare('UPDATE writings SET ai_paragraph = ? WHERE id = ?').run(cleanedParagraph, writing.id);
+        }
+        aiParagraph = cleanedParagraph;
       }
     }
 
@@ -265,6 +375,12 @@ router.get('/round/:sessionId/:round', (req, res) => {
     const writing = db.prepare(
       'SELECT * FROM writings WHERE session_id = ? AND round = ?'
     ).get(sessionId, round);
+    const cleanWriting = writing
+      ? {
+          ...writing,
+          ai_paragraph: round === 1 ? writing.ai_paragraph : getCleanAiParagraph(writing),
+        }
+      : null;
 
     res.json({
       round,
@@ -272,7 +388,7 @@ router.get('/round/:sessionId/:round', (req, res) => {
       vocabulary: vocab,
       starterSentence: starter,
       group,
-      writing: writing || null,
+      writing: cleanWriting,
     });
   } catch (err) {
     console.error('Round error:', err);
@@ -301,7 +417,10 @@ router.post('/generate-paragraph', async (req, res) => {
     // Gather previous writings
     const writings = db.prepare(
       'SELECT * FROM writings WHERE session_id = ? ORDER BY round'
-    ).all(sessionId);
+    ).all(sessionId).map((writing) => ({
+      ...writing,
+      ai_paragraph: writing.round === 1 ? writing.ai_paragraph : getCleanAiParagraph(writing),
+    }));
 
     // Build paragraphsR1 (AI paragraph + student text from round 1)
     const r1 = writings.find(w => w.round === 1);
@@ -321,8 +440,22 @@ router.post('/generate-paragraph', async (req, res) => {
       return hovers.map(h => h.word);
     };
 
-    const hoveredR1 = hoveredWords || getHoveredWords(1);
-    const hoveredR2 = getHoveredWords(2);
+    const hoveredR1 = resolveHoveredWords(round === 2 ? hoveredWords : [], getHoveredWords(1));
+    const hoveredR2 = resolveHoveredWords(round === 3 ? hoveredWords : [], getHoveredWords(2));
+    const requiredWords = isRepeating
+      ? (round === 2
+        ? normalizeWords([...ROUND2_TARGET_WORDS, ...hoveredR1])
+        : round === 3
+          ? hoveredR2
+          : [])
+      : [];
+    const forbiddenWords = isRepeating
+      ? (round === 2
+        ? ROUND1_TARGET_WORDS.filter((word) => !hoveredR1.includes(word))
+        : round === 3
+          ? ROUND2_TARGET_WORDS.filter((word) => !hoveredR2.includes(word))
+          : [])
+      : [];
 
     // Select prompt template
     const promptKey = isRepeating ? 'repeating' : 'noRepeating';
@@ -334,12 +467,39 @@ router.post('/generate-paragraph', async (req, res) => {
     const promptText = buildPrompt(template, {
       paragraphsR1,
       paragraphsR2,
-      hoveredR1: Array.isArray(hoveredR1) ? hoveredR1 : [],
+      hoveredR1,
       hoveredR2,
+      forbiddenWords,
     });
 
-    // Call LLM
-    const aiParagraph = await generateParagraph(promptText);
+    const shouldValidateStrictly = isRepeating && (round === 2 || round === 3);
+    const maxAttempts = shouldValidateStrictly ? 3 : 1;
+    let aiParagraph = '';
+    let validationResult = { isValid: true, missingWords: [], usedForbiddenWords: [] };
+    let retryPrompt = promptText;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      aiParagraph = await generateParagraph(retryPrompt, {
+        temperature: shouldValidateStrictly ? 0.2 : 0.4,
+      });
+
+      if (!shouldValidateStrictly) {
+        break;
+      }
+
+      validationResult = validateVocabulary(aiParagraph, requiredWords, forbiddenWords);
+      if (validationResult.isValid) {
+        break;
+      }
+
+      retryPrompt = buildRetryPrompt(promptText, aiParagraph, validationResult);
+    }
+
+    if (shouldValidateStrictly && !validationResult.isValid) {
+      return res.status(500).json({
+        error: 'AI paragraph generation did not satisfy the required vocabulary constraints. Please retry.',
+      });
+    }
 
     // Save or update writing record
     const existingWriting = db.prepare(
@@ -359,7 +519,12 @@ router.post('/generate-paragraph', async (req, res) => {
     console.error('Generate paragraph error:', err);
     if (err.message.includes('OPENAI_API_KEY')) {
       return res.status(503).json({
-        error: 'OpenAI API key is not configured. Please set OPENAI_API_KEY in your .env file.',
+        error: 'MiniMax API key 未配置或仍是占位符。请在 `.env` 中把 `OPENAI_API_KEY` 改成真实的 MiniMax API key，然后重启后端服务。',
+      });
+    }
+    if (err.status === 401 || err.type === 'authorized_error') {
+      return res.status(503).json({
+        error: 'MiniMax 鉴权失败：请检查 `.env` 中的 `OPENAI_API_KEY` 是否为真实可用的 MiniMax API key，并在修改后重启后端服务。',
       });
     }
     res.status(500).json({ error: err.message });

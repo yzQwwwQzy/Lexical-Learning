@@ -36,40 +36,82 @@ export default function WritingPage() {
 
   const sessionId = sessionStorage.getItem('session_id');
   const group = JSON.parse(sessionStorage.getItem('group') || '{}');
-  const aiParagraph = sessionStorage.getItem(`ai_paragraph_round${roundNum}`) || '';
-
   const openingSentence = OPENING_SENTENCES[roundNum] || '';
-  const vocabList = VOCABULARY[roundNum] || [];
-
   const [text, setText] = useState('');
+  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [aiParagraph, setAIParagraph] = useState('');
+  const [vocabList, setVocabList] = useState(VOCABULARY[roundNum] || []);
   const [writingId, setWritingId] = useState(null);
   const [readingConfirmed, setReadingConfirmed] = useState(false);
+  const [error, setError] = useState('');
   const keystrokesRef = useRef([]);
   const keystrokeBatchRef = useRef(null);
   const submittedRef = useRef(false);
+  const hoverDataRef = useRef({});
 
-  // Get writing ID from backend
   useEffect(() => {
-    async function fetchWritingId() {
+    async function fetchRoundData() {
+      if (!sessionId) {
+        setError('未找到当前会话，请重新开始任务。');
+        setLoading(false);
+        return;
+      }
+
       try {
+        submittedRef.current = false;
+        keystrokesRef.current = [];
+        hoverDataRef.current = {};
+        setText('');
+        setLoading(true);
+        setSubmitting(false);
+        setAIParagraph('');
+        setVocabList(VOCABULARY[roundNum] || []);
+        setWritingId(null);
+        setReadingConfirmed(false);
+        setError('');
+
         const res = await axios.get(`${API}/api/round/${sessionId}/${roundNum}`);
-        if (res.data.writing) {
-          setWritingId(res.data.writing.id);
+        const data = res.data;
+
+        if (roundNum > 1 && !data.aiParagraph) {
+          navigate(`/generating/${roundNum}`, { replace: true });
+          return;
+        }
+
+        setAIParagraph(data.aiParagraph || '');
+        setVocabList(data.vocabulary || []);
+        setWritingId(data.writing?.id || null);
+        setReadingConfirmed(!data.aiParagraph);
+
+        if (data.aiParagraph) {
+          sessionStorage.setItem(`ai_paragraph_round${roundNum}`, data.aiParagraph);
         }
       } catch (err) {
-        console.error('Failed to fetch writing ID:', err);
+        console.error('Failed to fetch round data:', err);
+        setError(err.response?.data?.error || '加载本轮内容失败，请刷新后重试。');
+        setReadingConfirmed(true);
+      } finally {
+        setLoading(false);
       }
     }
-    fetchWritingId();
-  }, [sessionId, roundNum]);
+    fetchRoundData();
+  }, [navigate, sessionId, roundNum]);
 
-  // Word count (opening sentence + student text)
-  const fullText = openingSentence + ' ' + text;
-  const wordCount = text.trim() ? fullText.trim().split(/\s+/).filter(Boolean).length : openingSentence.trim().split(/\s+/).filter(Boolean).length;
+  const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
   const inRange = wordCount >= 50 && wordCount <= 60;
+  const shouldShowHoverHint = roundNum !== 3;
+  const writingLocked = Boolean(aiParagraph) && !readingConfirmed;
 
-  // Keyboard logging
+  const handleHoverEvent = useCallback((event) => {
+    const { word, duration } = event;
+    if (!hoverDataRef.current[word]) {
+      hoverDataRef.current[word] = { totalDuration: 0, count: 0 };
+    }
+    hoverDataRef.current[word].totalDuration += duration;
+    hoverDataRef.current[word].count += 1;
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       keystrokesRef.current.push({
@@ -108,6 +150,27 @@ export default function WritingPage() {
     };
   }, [writingId]);
 
+  const flushHoverData = useCallback(async () => {
+    const hoveredWords = Object.keys(hoverDataRef.current);
+    sessionStorage.setItem(`hovered_words_round${roundNum}`, JSON.stringify(hoveredWords));
+
+    if (!writingId || hoveredWords.length === 0) {
+      return;
+    }
+
+    await Promise.all(
+      hoveredWords.map((word) =>
+        axios.post(`${API}/api/hover`, {
+          writingId,
+          word,
+          duration: hoverDataRef.current[word].totalDuration,
+          count: hoverDataRef.current[word].count,
+          round: roundNum,
+        })
+      )
+    );
+  }, [roundNum, writingId]);
+
   const doSubmit = useCallback(async () => {
     if (submittedRef.current) return;
     submittedRef.current = true;
@@ -127,8 +190,14 @@ export default function WritingPage() {
       }
     }
 
-    // Submit writing
-    const studentText = openingSentence + ' ' + text;
+    try {
+      await flushHoverData();
+    } catch (err) {
+      console.error('Failed to send hover data:', err);
+    }
+
+    const studentText = `${openingSentence} ${text}`.trim();
+
     try {
       await axios.post(`${API}/api/writing/submit`, {
         sessionId: Number(sessionId),
@@ -141,13 +210,12 @@ export default function WritingPage() {
 
     setSubmitting(false);
 
-    // Navigate to next round or end
     if (roundNum < 3) {
-      navigate(`/reading/${roundNum + 1}`);
+      navigate(`/generating/${roundNum + 1}`);
     } else {
       navigate('/end');
     }
-  }, [text, writingId, sessionId, roundNum, openingSentence, navigate]);
+  }, [flushHoverData, text, writingId, sessionId, roundNum, openingSentence, navigate]);
 
   const handleTimeUp = useCallback(() => {
     doSubmit();
@@ -155,30 +223,53 @@ export default function WritingPage() {
 
   const roundLabels = { 1: '第一轮', 2: '第二轮', 3: '第三轮' };
 
+  if (loading) {
+    return (
+      <div className="container">
+        <div className="loading-text">正在加载写作内容...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="container" style={{ maxWidth: 1100 }}>
-      <div className="round-indicator">
-        请您根据AI写作段落，并以下面这句话作为开头续写一段话，长度要求50词左右。完成续写后，请点击【提交】。
-        <br />
-        注意：您有15分钟时间完成本轮续写，时间结束本系统会自动提交您当前的内容。
+      <div className="writing-instruction-box">
+        <div className="writing-instruction-title">
+          {roundLabels[roundNum]}写作 | Round {roundNum} Writing
+        </div>
+        <div>
+          请先阅读左侧 AI 段落，再以下面给出的首句为开头续写一段话，长度要求 50-60 词。完成后请点击【提交】。
+        </div>
+        {shouldShowHoverHint && (
+          <div className="writing-instruction-hint">
+            您可以把鼠标移动到标蓝单词上方查看单词含义。
+          </div>
+        )}
+        <div className="writing-instruction-hint">
+          注意：您有 15 分钟时间完成本轮续写，时间结束本系统会自动提交您当前的内容。
+        </div>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2>{roundLabels[roundNum]}写作 | Round {roundNum} Writing</h2>
+        <h2>{roundLabels[roundNum]}续写</h2>
         <Timer minutes={15} onTimeUp={handleTimeUp} />
       </div>
+
+      {error && <div className="important-note">{error}</div>}
 
       <div className="writing-layout">
         <div className="writing-left">
           <h3 style={{ fontSize: '0.9rem', color: '#718096', marginBottom: 8 }}>AI段落 (Reference)</h3>
-          <HighlightedText
-            text={aiParagraph}
-            vocabList={vocabList}
-            annotationLang={group.annotationLang || 'l2'}
-            adaptiveRepeating={false}
-            onHoverEvent={() => {}}
-          />
-          {!readingConfirmed && (
+          {aiParagraph ? (
+            <HighlightedText
+              text={aiParagraph}
+              vocabList={vocabList}
+              annotationLang={group.annotationLang || 'l2'}
+              adaptiveRepeating={group.repeating !== false}
+              onHoverEvent={handleHoverEvent}
+            />
+          ) : null}
+          {aiParagraph && !readingConfirmed && (
             <button
               className="btn confirm-reading-btn"
               onClick={() => setReadingConfirmed(true)}
@@ -188,7 +279,7 @@ export default function WritingPage() {
           )}
         </div>
 
-        <div className={`writing-right${!readingConfirmed ? ' writing-disabled' : ''}`}>
+        <div className={`writing-right${writingLocked ? ' writing-disabled' : ''}`}>
           <div className="opening-sentence">
             {openingSentence}
           </div>
@@ -196,10 +287,15 @@ export default function WritingPage() {
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Continue writing here... (在此续写)"
-            autoFocus={readingConfirmed}
-            disabled={!readingConfirmed}
+            autoFocus={!writingLocked}
+            disabled={writingLocked}
           />
-          {!readingConfirmed && (
+          <div className="word-count-row">
+            <span className={`word-count${inRange ? ' in-range' : ''}`}>
+              词数 Word count: {wordCount} / 50-60（不含已给首句）
+            </span>
+          </div>
+          {writingLocked && (
             <div className="writing-disabled-overlay">
               请先阅读左侧AI段落，点击"我已阅读完毕"后开始写作
               <br />
@@ -210,9 +306,6 @@ export default function WritingPage() {
       </div>
 
       <div className="writing-footer">
-        <span className={`word-count${inRange ? ' in-range' : ''}`}>
-          词数 Word count: {wordCount} / 50-60
-        </span>
         <button
           className="btn"
           onClick={doSubmit}

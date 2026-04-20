@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 
 export default function HighlightedText({ text, vocabList, annotationLang, adaptiveRepeating, onHoverEvent }) {
   // Track which words have been hovered (by word string)
@@ -8,10 +8,13 @@ export default function HighlightedText({ text, vocabList, annotationLang, adapt
   const hoverStartRef = useRef(null);
 
   // Build a map of target words (lowercased) to their definitions
-  const vocabMap = {};
-  vocabList.forEach((v) => {
-    vocabMap[v.word.toLowerCase()] = annotationLang === 'l1' ? v.l1 : v.l2;
-  });
+  const vocabMap = useMemo(() => {
+    const map = {};
+    vocabList.forEach((v) => {
+      map[v.word.toLowerCase()] = annotationLang === 'l1' ? v.l1 : v.l2;
+    });
+    return map;
+  }, [annotationLang, vocabList]);
 
   const targetWords = new Set(Object.keys(vocabMap));
 
